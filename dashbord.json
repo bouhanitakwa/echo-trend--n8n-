@@ -1,0 +1,128 @@
+{
+  "name": "dashbord",
+  "nodes": [
+    {
+      "parameters": {
+        "collection": "Trends",
+        "options": {},
+        "query": "{ }"
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.3,
+      "position": [
+        176,
+        -96
+      ],
+      "id": "1250a0d5-5330-4d2a-9fa1-49ffa2265204",
+      "name": "Find documents",
+      "credentials": {
+        "mongoDb": {
+          "id": "zgG3nr8ODj4cOYSV",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const esc = s => String(s ?? '')\n  .replace(/&/g, '&amp;').replace(/</g, '&lt;')\n  .replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\n\nconst items = $input.all().map(i => i.json).filter(a => a && a.title);\n\nconst cards = items.map(a => {\n  const text = Array.isArray(a.content) ? a.content.join('\\n\\n') : (a.content || 'Pas de contenu.');\n  const body = esc(text).replace(/\\n/g, '<br>');\n  return `\n    <div class=\"card\">\n      ${a.image ? `<img src=\"${esc(a.image)}\" alt=\"${esc(a.title)}\" />` : ''}\n      <details>\n        <summary class=\"title\">${esc(a.title)}</summary>\n        <div class=\"content\">${body}</div>\n      </details>\n    </div>`;\n}).join('');\n\nconst html = `<!DOCTYPE html>\n<html lang=\"fr\"><head><meta charset=\"UTF-8\">\n<title>Dashboard Trends</title>\n<style>\n  body { font-family: Arial, sans-serif; background:#f4f4f4; margin:0; padding:20px; }\n  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(280px,1fr)); gap:20px; align-items:start; }\n  .card { background:#fff; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,.1); padding:15px; }\n  .card img { width:100%; height:160px; object-fit:cover; border-radius:6px; }\n  .title { cursor:pointer; color:#2563eb; font-weight:bold; margin:10px 0; }\n  .content { margin-top:10px; font-size:14px; color:#333; line-height:1.5; }\n</style></head>\n<body>\n  <h1>Articles tendance</h1>\n  <div class=\"grid\">${cards || '<p>Aucun article.</p>'}</div>\n</body></html>`;\n\nreturn [{ json: { html } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        368,
+        -80
+      ],
+      "id": "4b3f643d-4316-4a52-ac73-7f2048ee4aab",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "path": "dashboard",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        48,
+        -80
+      ],
+      "id": "657f5b00-77e1-43a2-abbe-78f6185e8caa",
+      "name": "Webhook",
+      "webhookId": "8761cbc7-8f46-4897-96e0-ec33ece534ba"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.html }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/html"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        592,
+        -80
+      ],
+      "id": "32460e66-c6bb-4649-9e70-9be1a13ece8e",
+      "name": "Respond to Webhook"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Find documents": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Find documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a63a3d70-bc39-4763-bb9a-d91dc0ab3f60",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "91ea51e2949a2767f5f9661ef1be34d2049b90118d34a2d89cc422ca941b15e9"
+  },
+  "nodeGroups": [],
+  "id": "Rb6D0fJ8evwXoWKh",
+  "tags": []
+}

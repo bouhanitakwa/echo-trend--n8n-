@@ -1,0 +1,397 @@
+{
+  "name": "get trends",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "={{ $json.url.replace(/^=/, '') }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -928,
+        256
+      ],
+      "id": "81f8867c-48cf-4d02-be1f-569ff93624f7",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {},
+      "id": "55727cf5-91f8-404f-885e-24f1d811d93a",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1376,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "collection": "try2",
+        "options": {},
+        "query": "={{ JSON.stringify({ confirmed_trend: true, posted: { $ne: true } }) }}"
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.3,
+      "position": [
+        -1152,
+        256
+      ],
+      "id": "d2cb08c5-9f88-4479-8d58-fb76a46cbe93",
+      "name": "Find documents1",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mongoDb": {
+          "id": "zgG3nr8ODj4cOYSV",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "title",
+              "cssSelector": "h1"
+            },
+            {
+              "key": "image",
+              "cssSelector": "meta[property=\"og:image\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -704,
+        160
+      ],
+      "id": "2936cd8e-a301-47ae-9b5a-dca5b101c88d",
+      "name": " Extract Title & Image"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "content",
+              "cssSelector": "[data-testid=\"rich-text\"] p",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        -704,
+        352
+      ],
+      "id": "3b4dea53-e840-44fd-930d-7f2db2210684",
+      "name": "Extract Article Content"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "834035db-f2ea-4c7d-a60b-f89e2d2260b3",
+              "name": "image",
+              "value": "={{ $json.image }}",
+              "type": "string"
+            },
+            {
+              "id": "229c5184-e462-40e1-bfdd-94a7d81fb34e",
+              "name": "title",
+              "value": "={{ $json.title }}",
+              "type": "string"
+            },
+            {
+              "id": "12a0d5fa-bb3f-457a-8ffa-ac982045f682",
+              "name": "content",
+              "value": "={{ $json.content }}",
+              "type": "string"
+            },
+            {
+              "id": "8fd5945f-330a-4602-ad8d-e68e0a3b42a7",
+              "name": "source_id",
+              "value": "={{ $('Find documents1').item.json._id.toString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -256,
+        256
+      ],
+      "id": "d6cd9dca-d7e2-4ba2-831d-c99dd502ba36",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "Trends",
+        "fields": "=title,image,content",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.3,
+      "position": [
+        -32,
+        256
+      ],
+      "id": "9d820ca3-d6cf-42c1-8adc-b6b3cf697986",
+      "name": "Insert documents",
+      "credentials": {
+        "mongoDb": {
+          "id": "zgG3nr8ODj4cOYSV",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -480,
+        256
+      ],
+      "id": "a9081b20-e726-4dd7-adfc-f7c1bf07a8d2",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "seconds"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1376,
+        160
+      ],
+      "id": "5d08952d-52a5-4ff1-b14c-199246e77517",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "9372ea4d-1ada-4693-a54d-d87c61bdc467",
+              "name": "posted",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "1272cc17-a829-4231-b29c-38f22441487b",
+              "name": "_id",
+              "value": "={{ $json._id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        176,
+        256
+      ],
+      "id": "35db8e76-031a-40b9-9dcf-d19341c6c69b",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "collection": "try2",
+        "updateKey": "=_id",
+        "fields": "=posted",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.3,
+      "position": [
+        320,
+        256
+      ],
+      "id": "821a539e-8070-451b-845a-b06bf46e81db",
+      "name": "Update documents",
+      "credentials": {
+        "mongoDb": {
+          "id": "zgG3nr8ODj4cOYSV",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "we get the true trends , \nget their html \nimage and content \nand insert them in new fiel in mongo called trends and add posted to the  version in articles \n",
+        "width": 512
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        720,
+        80
+      ],
+      "typeVersion": 1,
+      "id": "27e79b2b-3095-4d89-ab38-90a133de274c",
+      "name": "Sticky Note"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": " Extract Title & Image",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Article Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Find documents1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find documents1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    " Extract Title & Image": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Article Content": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Insert documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert documents": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Find documents1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Update documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "ffef9a88-84e7-4f06-ace7-1cd66cea9e55",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "91ea51e2949a2767f5f9661ef1be34d2049b90118d34a2d89cc422ca941b15e9"
+  },
+  "nodeGroups": [],
+  "id": "nF8W8BgtNRdwN8XR",
+  "tags": []
+}

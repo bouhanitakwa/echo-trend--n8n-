@@ -1,0 +1,600 @@
+{
+  "name": "first",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "f02d70be-4ed3-4d27-ac98-47f122de4eee",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        16
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "https://www.eyefootball.com/football_news.xml",
+        "options": {}
+      },
+      "id": "b86e0b29-2f0b-43e7-9bb5-4866f63a3e13",
+      "name": "Fetch RSS Feed2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -496,
+        176
+      ],
+      "notesInFlow": true,
+      "notes": "Fetches the raw XML feed of your chosen RSS source."
+    },
+    {
+      "parameters": {
+        "url": "https://feeds.bbci.co.uk/sport/football/rss.xml",
+        "options": {}
+      },
+      "id": "c0ad45cb-71a8-434e-9f30-c95b6602aef1",
+      "name": "Fetch RSS Feed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -496,
+        368
+      ],
+      "notesInFlow": true,
+      "notes": "Fetches the raw XML feed of your chosen RSS source."
+    },
+    {
+      "parameters": {
+        "url": "https://www.theguardian.com/football/rss",
+        "options": {}
+      },
+      "id": "695dfa97-c7b4-462e-8e74-5deca9dee585",
+      "name": "Fetch RSS Feed1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -496,
+        560
+      ],
+      "notesInFlow": true,
+      "notes": "Fetches the raw XML feed of your chosen RSS source."
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "525e80e0-89eb-4cbc-bb28-4833d08bb5e1",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -720,
+        656
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "b8c234bd-6327-40c0-91a1-6baa2e4a736e",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.1,
+      "position": [
+        -64,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = [];\nconst allInputs = $input.all();\n\nfor (const inputItem of allInputs) {\n  const xmlText = inputItem?.json?.data || \"\";\n  if (!xmlText) continue;\n\n  const itemRegex = /<item>([\\s\\S]*?)<\\/item>/gi;\n  let match;\n\n  while ((match = itemRegex.exec(xmlText)) !== null) {\n    const itemContent = match[1];\n\n    const getTagValue = (tag) => {\n      const regex = new RegExp(\n        `<${tag}>(?:<!\\\\[CDATA\\\\[([\\\\s\\\\S]*?)\\\\]\\\\]>|([^<]*))`,\n        \"i\"\n      );\n      const tagMatch = itemContent.match(regex);\n      return ((tagMatch && (tagMatch[1] || tagMatch[2])) || \"\").trim();\n    };\n\n    const title = getTagValue(\"title\");\n    const link = getTagValue(\"link\");\n    const description = getTagValue(\"description\");\n    const pubDate = getTagValue(\"pubDate\").replace(/[\\n\\r\\t]/g, \" \").replace(/\\s+/g, \" \").trim();\n\n    if (!title || !link) continue;\n\n    items.push({\n      json: {\n        title,\n        url: link,\n        description: description.replace(/<[^>]*>/g, \"\").trim(),\n        publishedDate: pubDate,\n      },\n    });\n  }\n}\n\nconsole.log(\"Total items parsed from all sources:\", items.length);\nreturn items;"
+      },
+      "id": "6f9814f5-bf67-4cce-8847-aea078734e61",
+      "name": "Parse RSS Feed",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        128,
+        272
+      ],
+      "notesInFlow": true,
+      "notes": "Parses XML tags into structured JSON items without external dependencies."
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "id": "5a7725ad-e34c-4db9-9b91-a1dc12cd2c9b",
+      "name": "Split Articles",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        320,
+        272
+      ],
+      "notesInFlow": true,
+      "notes": "Loops through articles one by one. Each item is processed exactly once, continuing until all articles have been handled."
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "try",
+        "fields": "title,url,description,publishedDate",
+        "options": {
+          "useDotNotation": false
+        }
+      },
+      "id": "8751f3e6-8a96-4605-bf5c-b27517f62515",
+      "name": "MongoDB3",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.1,
+      "position": [
+        560,
+        288
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "zgG3nr8ODj4cOYSV",
+          "name": "MongoDB account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.mistral.ai/v1/embeddings",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "mistralCloudApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"model\": \"mistral-embed\", \"input\": \"={{ $(\"Split Articles\").item.json.title + \" \" + $(\"Split Articles\").item.json.description }}\" }",
+        "options": {}
+      },
+      "id": "41005b97-d99d-421d-8c77-a9cf3dbbdd2f",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        768,
+        272
+      ],
+      "retryOnFail": true,
+      "executeOnce": false,
+      "waitBetweenTries": 5000,
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "UUketXO5MeXhSsWX",
+          "name": "Mistral Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={ \"title\": \"={{ $(\"Split Articles\").item.json.title }}\", \"url\": \"={{ $(\"Split Articles\").item.json.url }}\", \"description\": \"={{ $(\"Split Articles\").item.json.description }}\", \"publishedDate\": \"={{ $(\"Split Articles\").item.json.publishedDate }}\", \"category\": \"football\", \"embedding\": {{ $json.data[0].embedding }} }",
+        "options": {}
+      },
+      "id": "b5403d87-59ca-4bbf-bcf4-d5cf3e5e247b",
+      "name": "Edit Fields",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1024,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "collection": "try",
+        "options": {},
+        "query": "{ \"embedding\": { \"$exists\": true } }"
+      },
+      "id": "6a4405cc-6844-4616-988f-40536766d0a7",
+      "name": "MongoDB1",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.1,
+      "position": [
+        1312,
+        272
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "mongoDb": {
+          "id": "zgG3nr8ODj4cOYSV",
+          "name": "MongoDB account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Embedding du nouvel article (depuis Edit Fields)\nconst newEmbedding = $(\"Edit Fields\").item.json.embedding;\n\n// Tous les articles existants avec embeddings (depuis MongoDB Find All)\nconst existingArticles = $input.all();\n\n// Fonction pour normaliser un vecteur (le transformer en vecteur unitaire)\nfunction normalize(vec) {\n  const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0));\n  if (norm === 0) return vec; // évite division par zéro\n  return vec.map(v => v / norm);\n}\n\n// Fonction dot product (produit scalaire)\nfunction dotProduct(a, b) {\n  let sum = 0;\n  for (let i = 0; i < a.length; i++) {\n    sum += a[i] * b[i];\n  }\n  return sum;\n}\n\n// Normaliser le nouvel embedding UNE SEULE FOIS\nconst normalizedNewEmbedding = normalize(newEmbedding);\n\n// Calculer similarité max avec tous les embeddings existants\nlet maxSimilarity = 0;\nlet closestArticle = null;\n\nfor (const article of existingArticles) {\n  if (article.json.embedding && article.json.embedding.length > 0) {\n    // Normaliser l'embedding existant, puis dot product = cosine similarity\n    const normalizedExisting = normalize(article.json.embedding);\n    const sim = dotProduct(normalizedNewEmbedding, normalizedExisting);\n\n    if (sim > maxSimilarity) {\n      maxSimilarity = sim;\n      closestArticle = article.json.title || null;\n    }\n  }\n}\n\n// Novelty score = inverse de la similarité max\nconst noveltyScore = parseFloat((1 - maxSimilarity).toFixed(4));\n\n// Classifier la nouveauté\nlet noveltyLevel;\nif (noveltyScore > 0.7) {\n  noveltyLevel = \"HIGH\";\n} else if (noveltyScore > 0.4) {\n  noveltyLevel = \"MEDIUM\";\n} else {\n  noveltyLevel = \"LOW\";\n}\n\nreturn [{\n  json: {\n    // Données de l'article\n    title: $(\"Edit Fields\").item.json.title,\n    url: $(\"Edit Fields\").item.json.url,\n    description: $(\"Edit Fields\").item.json.description,\n    publishedDate: $(\"Edit Fields\").item.json.publishedDate,\n    category: $(\"Edit Fields\").item.json.category,\n    embedding: newEmbedding,\n    // Résultats cosinus (via dot product pré-normalisé)\n    novelty_score: noveltyScore,\n    novelty_level: noveltyLevel,\n    max_similarity: parseFloat(maxSimilarity.toFixed(4)),\n    closest_article: closestArticle\n  }\n}];"
+      },
+      "id": "bfa65541-b9c2-4453-91c1-70d21c322b78",
+      "name": "Code",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        272
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Tu es un expert en tendances football. Analyse cet article : Titre : {{ $json.title }}, Description : {{ $json.description }}, Novelty Level : {{ $json.novelty_level }}, Novelty Score : {{ $json.novelty_score }}. CONTEXTE NOVELTY : HIGH (supérieur à 0.7) : sujet complètement nouveau, MEDIUM (entre 0.4 et 0.7) : sujet partiellement couvert, LOW (inférieur à 0.4) : sujet déjà bien couvert. Cherche si l'article contient UN ou PLUSIEURS de ces triggers : extreme_score, star_injury, record_transfer, coach_sacked, historic_record, scandal, major_competition, comeback, red_card_final. Règles de scoring : Si novelty_level = HIGH + trigger trouvé → confidence élevée (0.80 à 1.0), Si novelty_level = MEDIUM + trigger trouvé → confidence moyenne (0.50 à 0.79), Si novelty_level = LOW + trigger trouvé → confidence basse (0.30 à 0.49), Si aucun trigger trouvé → is_potential_trend = false. Retourne UNIQUEMENT ce JSON sans markdown sans backticks : {\"is_potential_trend\":true,\"triggers_found\":[\"trigger1\",\"trigger2\"],\"confidence\":0.85,\"reason\":\"explication courte en français\"}",
+        "options": {
+          "systemMessage": "Tu es un expert en analyse de tendances football. Tu analyses des articles et retournes uniquement un objet JSON valide, sans markdown ni backticks."
+        }
+      },
+      "id": "8a4a522c-0b1c-4939-9dc0-280bc5579db4",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        1744,
+        272
+      ],
+      "retryOnFail": true
+    },
+    {
+      "parameters": {
+        "model": "mistral-small-latest",
+        "options": {}
+      },
+      "id": "ba5b1fdf-2c8b-4e1d-892e-b1844117eb9e",
+      "name": "Mistral Cloud Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatMistralCloud",
+      "typeVersion": 1,
+      "position": [
+        5040,
+        -848
+      ],
+      "credentials": {
+        "mistralCloudApi": {
+          "id": "vgtGYUEd7sT0WCBt",
+          "name": "Mistral Cloud account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parser la sortie de l'AI Agent\nlet aiResult;\ntry {\n  aiResult = JSON.parse($json.output.trim());\n} catch(e) {\n  aiResult = {\n    is_potential_trend: false,\n    triggers_found: [],\n    confidence: 0,\n    reason: \"parsing error\"\n  };\n}\n\n// Toutes les données viennent de Code (cosinus) qui contient déjà tout\nconst noveltyData = $('Code').item.json;\n\nreturn [{\n  json: {\n    title: noveltyData.title,\n    url: noveltyData.url,\n    description: noveltyData.description,\n    publishedDate: noveltyData.publishedDate,\n    category: noveltyData.category,\n    embedding: noveltyData.embedding,\n    novelty_score: noveltyData.novelty_score,\n    novelty_level: noveltyData.novelty_level,\n    max_similarity: noveltyData.max_similarity,\n    closest_article: noveltyData.closest_article,\n    is_potential_trend: aiResult.is_potential_trend,\n    triggers_found: aiResult.triggers_found,\n    confidence: aiResult.confidence,\n    reason: aiResult.reason,\n    prediction_made_at: new Date().toISOString(),\n    confirmed_trend: false,\n    confirmed_at: null\n  }\n}];"
+      },
+      "id": "9a105cf9-97f8-40c8-ae01-e569f2d69497",
+      "name": "Code1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2048,
+        256
+      ],
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "collection": "try2",
+        "fields": "=title,url,description,publishedDate,category,\nembedding,novelty_score,novelty_level,max_similarity,closet_artilce,is_potential_trend,triggers_found,confidence,reason,prediction_made_at ,confirmed_trend,confirmed_at",
+        "options": {}
+      },
+      "id": "c4f69a29-c74a-4ef2-8ff9-9226a5b49f78",
+      "name": "MongoDB2",
+      "type": "n8n-nodes-base.mongoDb",
+      "typeVersion": 1.1,
+      "position": [
+        2208,
+        240
+      ],
+      "credentials": {
+        "mongoDb": {
+          "id": "zgG3nr8ODj4cOYSV",
+          "name": "MongoDB account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { done: true } }];"
+      },
+      "id": "d91feac5-7585-41db-b69f-e18c8dc70cc7",
+      "name": "Code in JavaScript",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2416,
+        464
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "maxTokens": 1000
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1616,
+        464
+      ],
+      "id": "b103442a-e1a8-4a7b-adef-af543693f478",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "1gU5F880nEZ3reEq",
+          "name": "OpenRouter account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch RSS Feed2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch RSS Feed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch RSS Feed1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch RSS Feed2": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch RSS Feed": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Fetch RSS Feed1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch RSS Feed",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch RSS Feed1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch RSS Feed2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Parse RSS Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse RSS Feed": {
+      "main": [
+        [
+          {
+            "node": "Split Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Articles": {
+      "main": [
+        [],
+        [
+          {
+            "node": "MongoDB3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MongoDB3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Split Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "MongoDB1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MongoDB1": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mistral Cloud Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "MongoDB2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MongoDB2": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Split Articles",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "477829cd-ada9-4e0d-981a-580e4e88e214",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "91ea51e2949a2767f5f9661ef1be34d2049b90118d34a2d89cc422ca941b15e9"
+  },
+  "nodeGroups": [],
+  "id": "x1nzYtpFBI8d5YiI",
+  "tags": []
+}
